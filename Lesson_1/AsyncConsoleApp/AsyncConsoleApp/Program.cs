@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
@@ -25,10 +27,13 @@ namespace AsyncConsoleApp
                 
                 Console.WriteLine("Downloading is completed");
 
-                var data = new JsonPostData[NumOfPosts];
+                var data = new List<JsonPostData>();
                 for (int i = 0; i < tasks.Length; i++)
                 {
-                    data[i] = JsonConvert.DeserializeObject<JsonPostData>(tasks[i].Result);
+                    if(tasks[i].IsCompletedSuccessfully)
+                    {
+                        data.Add(JsonConvert.DeserializeObject<JsonPostData>(tasks[i].Result));
+                    }
                 }
                 
                 Console.WriteLine("Parsing is completed");
@@ -48,20 +53,14 @@ namespace AsyncConsoleApp
             }
         }
 
-        private static Task<string>[] GetPostTasks(int numOfTasks, int startPost, Uri baseUri)
-        {
-            var totalPosts = startPost + numOfTasks;
-            var postTasks = new Task<string>[numOfTasks];
-            for (int i = startPost; i < totalPosts; i++)
-            {
-                Uri postUri = new Uri(baseUri, i.ToString());
-                postTasks[i - startPost] = _client.GetStringAsync(postUri);
-            }
-
-            return postTasks;
-        }
+        private static Task<string>[] GetPostTasks(int numOfTasks, int startPost, Uri baseUri) =>
+            Enumerable
+                .Range(startPost, numOfTasks + startPost)
+                .Select(i => new Uri(baseUri, i.ToString()))
+                .Select(uri => _client.GetStringAsync(uri))
+                .ToArray();
         
-        private static async Task WriteDataToFile(JsonPostData[] data, string filePath)
+        private static async Task WriteDataToFile(List<JsonPostData> data, string filePath)
         {
             await using StreamWriter writer = new StreamWriter(File.Open(filePath, FileMode.Create));
             foreach (var postData in data)
